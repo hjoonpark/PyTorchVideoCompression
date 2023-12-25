@@ -30,3 +30,4 @@ fullperformance/*
 *.mp4
 *.mkv
 *.yuv
+data/

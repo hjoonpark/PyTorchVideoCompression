@@ -1,8 +1,11 @@
 import os
 
-num = 7
-video_name = ['Beauty_1920x1024_120fps_420_8bit_YUV.yuv', 'HoneyBee_1920x1024_120fps_420_8bit_YUV.yuv', 'ReadySteadyGo_1920x1024_120fps_420_8bit_YUV.yuv',  'YachtRide_1920x1024_120fps_420_8bit_YUV.yuv', 'Bosphorus_1920x1024_120fps_420_8bit_YUV.yuv',  'Jockey_1920x1024_120fps_420_8bit_YUV.yuv', 'ShakeNDry_1920x1024_120fps_420_8bit_YUV.yuv']
-short = ['Beauty', 'HoneyBee', 'ReadySteadyGo', 'YachtRide', 'Bosphorus', 'Jockey', 'ShakeNDry']
+video_name = ['Beauty_1920x1024_120fps_420_8bit_YUV.yuv']
+short = ['Beauty']
+
+# video_name = ['Beauty_1920x1024_120fps_420_8bit_YUV.yuv', 'HoneyBee_1920x1024_120fps_420_8bit_YUV.yuv', 'ReadySteadyGo_1920x1024_120fps_420_8bit_YUV.yuv',  'YachtRide_1920x1024_120fps_420_8bit_YUV.yuv', 'Bosphorus_1920x1024_120fps_420_8bit_YUV.yuv',  'Jockey_1920x1024_120fps_420_8bit_YUV.yuv', 'ShakeNDry_1920x1024_120fps_420_8bit_YUV.yuv']
+# short = ['Beauty', 'HoneyBee', 'ReadySteadyGo', 'YachtRide', 'Bosphorus', 'Jockey', 'ShakeNDry']
+num = len(video_name)
 
 for i in range(num):
     saveroot = 'images/' + short[i]

@@ -1,3 +1,4 @@
+rm log.txt
 ROOT=savecode/
 export PYTHONPATH=$PYTHONPATH:$ROOT
 mkdir snapshot

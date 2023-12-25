@@ -21,6 +21,8 @@ from drawuvg import uvgdrawplt
 torch.backends.cudnn.enabled = True
 # gpu_num = 4
 gpu_num = torch.cuda.device_count()
+print("gpu_num:", gpu_num)
+device = torch.device('cpu')
 cur_lr = base_lr = 1e-4#  * gpu_num
 train_lambda = 2048
 print_step = 100
@@ -91,7 +93,7 @@ def adjust_learning_rate(optimizer, global_step):
 
 
 def Var(x):
-    return Variable(x.cuda())
+    return Variable(x.to(device))
 
 def testuvg(global_step, testfull=False):
     with torch.no_grad():
@@ -134,10 +136,10 @@ def testuvg(global_step, testfull=False):
 
 
 def train(epoch, global_step):
-
-    print ("epoch", epoch)
+    print ("train epoch", epoch)
     global gpu_per_batch
-    train_loader = DataLoader(dataset = train_dataset, shuffle=True, num_workers=gpu_num, batch_size=gpu_per_batch, pin_memory=True)
+    train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=2)
+    # train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=gpu_per_batch, pin_memory=True)
     net.train()
 
     global optimizer
@@ -252,15 +254,19 @@ if __name__ == "__main__":
     logger.info("config : ")
     logger.info(open(args.config).read())
     parse_config(args.config)
-    
-    logger.info("model initializing...")
+
+    logger.info("model initialzing...")
     model = VideoCompressor()
     logger.info(model)
+
     if args.pretrain != '':
         print("loading pretrain : ", args.pretrain)
         global_step = load_model(model, args.pretrain)
-    net = model.cuda()
-    net = torch.nn.DataParallel(net, list(range(gpu_num)))
+    # device = torch.device("cuda:0")
+    device = torch.device("cpu")
+    net = model.to(device)
+    print("model moved to :", device)
+    # net = torch.nn.DataParallel(net, list(range(gpu_num)))
     bp_parameters = net.parameters()
     optimizer = optim.Adam(bp_parameters, lr=base_lr)
     # save_model(model, 0)
@@ -272,7 +278,7 @@ if __name__ == "__main__":
         exit(0)
 
     tb_logger = SummaryWriter('./events')
-    train_dataset = DataSet("data/vimeo_septuplet/test.txt")
+    train_dataset = DataSet("../../data/vimeo_septuplet/test.txt")
     # test_dataset = UVGDataSet(refdir=ref_i_dir)
     stepoch = global_step // (train_dataset.__len__() // (gpu_per_batch))# * gpu_num))
     for epoch in range(stepoch, tot_epoch):

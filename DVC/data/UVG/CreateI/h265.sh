@@ -1,10 +1,10 @@
 #!/bin/bash
 rm -rf out
+mkdir out
 rm result.txt
 touch result.txt
 
 echo "crf $1 resolution $2 x $3"
-
 for input in ../videos_crop/*.yuv; do
 
 	echo "orginal"
@@ -14,10 +14,10 @@ for input in ../videos_crop/*.yuv; do
 	echo "$input"
 
 	mkdir -p out/source/
+	mkdir -p out/h265/
 
 	ffmpeg -pix_fmt yuv420p -s:v $2x$3 -i $input -f image2 out/source/img%06d.png
 
-	mkdir -p out/h265/
 
 	FFREPORT=file=ffreport.log:level=56 ffmpeg -pix_fmt yuv420p -s $2x$3 -i $input -c:v libx265 -tune zerolatency -x265-params "crf=$1:keyint=12:verbose=1" out/h265/out.mkv
 

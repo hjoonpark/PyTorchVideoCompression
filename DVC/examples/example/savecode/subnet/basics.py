@@ -54,7 +54,7 @@ def relu(x):
 #     # return tf.nn.sigmoid(x,name='relu')
 
 
-from tensorflow.contrib.layers.python.layers import batch_norm as batch_norm
+# from tensorflow.contrib.layers.python.layers import batch_norm as batch_norm
 
 
 def yuv_import_444(filename, dims, numfrm, startfrm):
