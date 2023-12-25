@@ -52,10 +52,12 @@ Backward_tensorGrid = [{} for i in range(8)]
 
 def torch_warp(tensorInput, tensorFlow):
     device_id = tensorInput.device.index
+    if device_id is None:
+        device_id = 0
     if str(tensorFlow.size()) not in Backward_tensorGrid[device_id]:
             tensorHorizontal = torch.linspace(-1.0, 1.0, tensorFlow.size(3)).view(1, 1, 1, tensorFlow.size(3)).expand(tensorFlow.size(0), -1, tensorFlow.size(2), -1)
             tensorVertical = torch.linspace(-1.0, 1.0, tensorFlow.size(2)).view(1, 1, tensorFlow.size(2), 1).expand(tensorFlow.size(0), -1, -1, tensorFlow.size(3))
-            Backward_tensorGrid[device_id][str(tensorFlow.size())] = torch.cat([ tensorHorizontal, tensorVertical ], 1).cuda().to(device_id)
+            Backward_tensorGrid[device_id][str(tensorFlow.size())] = torch.cat([ tensorHorizontal, tensorVertical ], 1)# .cuda().to(device_id)
             # B, C, H, W = tensorInput.size()
             # xx = torch.arange(0, W).view(1,-1).repeat(H,1)
             # yy = torch.arange(0, H).view(-1,1).repeat(1,W)
@@ -348,8 +350,10 @@ class ME_Spynet(nn.Module):
 
         shape_fine = im2list[self.L - 1].size()
         zeroshape = [batchsize, 2, shape_fine[2] // 2, shape_fine[3] // 2]
-        device_id = im1.device.index
-        flowfileds = torch.zeros(zeroshape, dtype=torch.float32, device=device_id)
+        # device_id = im1.device.index
+        # if device_id is None:
+        #     device_id = 0
+        flowfileds = torch.zeros(zeroshape, dtype=torch.float32)
         for intLevel in range(self.L):
             flowfiledsUpsample = bilinearupsacling(flowfileds) * 2.0
             flowfileds = flowfiledsUpsample + self.moduleBasic[intLevel](torch.cat([im1list[self.L - 1 - intLevel], flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample), flowfiledsUpsample], 1))# residualflow

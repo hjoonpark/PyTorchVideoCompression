@@ -112,6 +112,7 @@ class DataSet(data.Dataset):
         fns_train_ref = []
 
         subfolders = glob.glob(os.path.join(input_dir, "*"), recursive = True)
+        stop = False
         for sf in subfolders:
             subfolders2 = glob.glob(os.path.join(sf, "*"), recursive = True)
             for sf2 in subfolders2:
@@ -127,8 +128,14 @@ class DataSet(data.Dataset):
                         fns_train_ref += [refname]
                     else:
                         print("Not exists, skipping: {}".format(refname))
-            break
-
+                    if len(fns_train_input) > 5:
+                        stop = True
+                        break
+                if stop:
+                    break
+            if stop:
+                break
+                                    
         print("fns_train_input: {}, fns_train_ref: {}".format(len(fns_train_input), len(fns_train_ref)))
         print(fns_train_input[0])
         print(fns_train_ref[0])

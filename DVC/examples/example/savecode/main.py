@@ -142,6 +142,11 @@ def train(epoch, global_step):
     # train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=gpu_per_batch, pin_memory=True)
     net.train()
 
+    n_params = sum(p.numel() for p in model.parameters())
+    n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("Trainable parameters: {:,}".format(n_trainable))
+    print("Untrainable parameters: {:,}".format(n_params-n_trainable))
+
     global optimizer
     bat_cnt = 0
     cal_cnt = 0
@@ -156,6 +161,7 @@ def train(epoch, global_step):
     tot_iter = len(train_loader)
     t0 = datetime.datetime.now()
     for batch_idx, input in enumerate(train_loader):
+        print(f"  batch: {batch_idx}")
         global_step += 1
         bat_cnt += 1
         input_image, ref_image = Var(input[0]), Var(input[1])
