@@ -31,3 +31,4 @@ fullperformance/*
 *.mkv
 *.yuv
 data/
+events/

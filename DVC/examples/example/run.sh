@@ -1,5 +1,6 @@
 clear;
 rm log.txt
+rm nohup.txt
 ROOT=savecode/
 export PYTHONPATH=$PYTHONPATH:$ROOT
 mkdir snapshot

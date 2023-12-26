@@ -15,6 +15,15 @@ from torch.nn.parameter import Parameter
 from subnet import *
 import torchac
 
+import matplotlib.pyplot as plt
+def save_image_as_plot(save_path, x):
+    plt.figure()
+    plt.imshow(x)
+    plt.title('{}\n{}'.format(x.shape, os.path.basename(save_path)))
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+    print("Saved:", save_path)
+
 def save_model(model, iter):
     torch.save(model.state_dict(), "./snapshot/iter{}.model".format(iter))
 
@@ -69,15 +78,23 @@ class VideoCompressor(nn.Module):
 
     def forward(self, input_image, referframe, quant_noise_feature=None, quant_noise_z=None, quant_noise_mv=None):
         estmv = self.opticFlow(input_image, referframe)
+
+        if True:
+            save_path = "output/estmv.jpg"
+            x = estmv.detach().cpu().squeeze().numpy()
+            x = np.transpose(np.vstack((x, np.zeros((1, x.shape[1], x.shape[2])))), (1, 2, 0))
+            save_image_as_plot(save_path, x)
+
         mvfeature = self.mvEncoder(estmv)
+
         if self.training:
             quant_mv = mvfeature + quant_noise_mv
         else:
             quant_mv = torch.round(mvfeature)
+
         quant_mv_upsample = self.mvDecoder(quant_mv)
 
         prediction, warpframe = self.motioncompensation(referframe, quant_mv_upsample)
-
         input_residual = input_image - prediction
 
         feature = self.resEncoder(input_residual)

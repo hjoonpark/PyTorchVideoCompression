@@ -18,6 +18,8 @@ import json
 from dataset import DataSet, UVGDataSet
 from tensorboardX import SummaryWriter
 from drawuvg import uvgdrawplt
+
+
 torch.backends.cudnn.enabled = True
 # gpu_num = 4
 gpu_num = torch.cuda.device_count()
@@ -134,18 +136,29 @@ def testuvg(global_step, testfull=False):
         logger.info(log)
         uvgdrawplt([sumbpp], [sumpsnr], [summsssim], global_step, testfull=testfull)
 
+import matplotlib.pyplot as plt
+def save_image_as_plot(save_path, x):
+    plt.figure()
+    plt.imshow(x)
+    plt.title('{}\n{}'.format(x.shape, os.path.basename(save_path)))
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+    print("Saved:", save_path)
 
 def train(epoch, global_step):
-    print ("train epoch", epoch)
+    # print ("train epoch", epoch)
     global gpu_per_batch
-    train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=2)
+    train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=1)
     # train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=gpu_per_batch, pin_memory=True)
     net.train()
 
-    n_params = sum(p.numel() for p in model.parameters())
-    n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Trainable parameters: {:,}".format(n_trainable))
-    print("Untrainable parameters: {:,}".format(n_params-n_trainable))
+    save_dir = "output"
+    os.makedirs(save_dir, exist_ok=True)
+    save_plot = True
+    # n_params = sum(p.numel() for p in model.parameters())
+    # n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # print("Trainable parameters: {:,}".format(n_trainable))
+    # print("Untrainable parameters: {:,}".format(n_params-n_trainable))
 
     global optimizer
     bat_cnt = 0
@@ -161,14 +174,26 @@ def train(epoch, global_step):
     tot_iter = len(train_loader)
     t0 = datetime.datetime.now()
     for batch_idx, input in enumerate(train_loader):
-        print(f"  batch: {batch_idx}")
+        if batch_idx > 0:
+            print(">> BREAK at", batch_idx)
+            break
+
         global_step += 1
         bat_cnt += 1
         input_image, ref_image = Var(input[0]), Var(input[1])
+
+        if save_plot:
+            x = np.transpose(input_image.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            save_image_as_plot(os.path.join(save_dir, "input_image.jpg"), x)
+            x = np.transpose(ref_image.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            save_image_as_plot(os.path.join(save_dir, "ref_image.jpg"), x)
+        
         quant_noise_feature, quant_noise_z, quant_noise_mv = Var(input[2]), Var(input[3]), Var(input[4])
+
         # ta = datetime.datetime.now()
         clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = net(input_image, ref_image, quant_noise_feature, quant_noise_z, quant_noise_mv)
-        
+        break
+
         # tb = datetime.datetime.now()
         mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = \
             torch.mean(mse_loss), torch.mean(warploss), torch.mean(interloss), torch.mean(bpp_feature), torch.mean(bpp_z), torch.mean(bpp_mv), torch.mean(bpp)
@@ -293,4 +318,5 @@ if __name__ == "__main__":
             save_model(model, global_step)
             break
         global_step = train(epoch, global_step)
+        break
         save_model(model, global_step)
