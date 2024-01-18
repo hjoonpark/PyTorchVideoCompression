@@ -5,11 +5,21 @@ from .flowlib import flow_to_image
 from .flowlib import read_flow, evaluate_flow
 import matplotlib.pyplot as plt
 # from warp import tf_warp
-import sys
+import sys, os
 # sys.path.append('/home/user321/tf_flownet2-master/FlowNet2_src/')
 modelspath = '../flow_pretrain_np/'
 
 # from flow_warp import flow_warp
+
+import matplotlib.pyplot as plt
+def save_image_as_plot(save_path, x):
+    plt.figure(figsize=(3,3))
+    plt.imshow(x)
+    plt.title('{} ({:.2f}, {:.2f})\n{}'.format(x.shape, x.min(), x.max(), os.path.basename(save_path)))
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+    print("Saved:", save_path)
 
 def as_np_image(x):
     x = np.transpose(x.detach().cpu().squeeze().numpy(), (1, 2, 0))
@@ -339,7 +349,14 @@ class ME_Spynet(nn.Module):
     #     return im
 
     def forward(self, im1, im2):
-        # print("*"*100)
+        # print("-"*50)
+        # save_dir = "output/opticFlow"
+        # os.makedirs(save_dir, exist_ok=True)
+        # x = np.transpose(im1.detach().cpu().numpy().squeeze(), (1, 2, 0))
+        # save_image_as_plot(os.path.join(save_dir, "Spynet_im1.jpg"), x)
+        # x = np.transpose(im2.detach().cpu().numpy().squeeze(), (1, 2, 0))
+        # save_image_as_plot(os.path.join(save_dir, "Spynet_im2.jpg"), x)
+
         batchsize = im1.size()[0]
         im1_pre = im1
         im2_pre = im2
@@ -347,63 +364,54 @@ class ME_Spynet(nn.Module):
         im1list = [im1_pre]
         im2list = [im2_pre]
         for intLevel in range(self.L - 1):
-            # print(">> intLevel:", intLevel)
             x = F.avg_pool2d(im1list[intLevel], kernel_size=2, stride=2)
-            # print("  {} -> {}".format(im1list[intLevel].shape, x.shape))
             im1list.append(x)# , count_include_pad=False))
+
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_im1_intLevel{intLevel}.jpg"), x)
+
             x = F.avg_pool2d(im2list[intLevel], kernel_size=2, stride=2)
-            # print("  {} -> {}".format(im2list[intLevel].shape, x.shape))
             im2list.append(x)#, count_include_pad=False))
 
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_im2_intLevel{intLevel}.jpg"), x)
+
         shape_fine = im2list[self.L - 1].size()
-        # print("shape_fine:", shape_fine)
         zeroshape = [batchsize, 2, shape_fine[2] // 2, shape_fine[3] // 2]
-        # print("zeroshape:", zeroshape)
-        # device_id = im1.device.index
         # if device_id is None:
         #     device_id = 0
         flowfileds = torch.zeros(zeroshape, dtype=torch.float32)
         for intLevel in range(self.L):
-            # print("<< intLevel:", intLevel)
-            # print("  in:", flowfileds.shape)
             flowfiledsUpsample = bilinearupsacling(flowfileds) * 2.0
-            # print("  up:", flowfiledsUpsample.shape)
+
+            # x = np.transpose(flowfiledsUpsample.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # x = np.concatenate([x, np.zeros((x.shape[0], x.shape[1], 1))], -1)
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_flowfield_intLevel{intLevel}.jpg"), x)
 
             module = self.moduleBasic[intLevel]
 
-            if False:
-                fw = flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample)
-                fig = plt.figure(figsize=(15, 5))
-                ax = fig.add_subplot(1, 3, 1)
-                x = as_np_image(im2list[self.L - 1 - intLevel])
-                ax.imshow(x)
-                ax.set_title("im2list[{}]={}".format(self.L - 1 - intLevel, im2list[self.L - 1 - intLevel].shape))
+            # x = im2list[self.L - 1 - intLevel]
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_im2_beforeWarp_intLevel{intLevel}.jpg"), x)
 
-                ax = fig.add_subplot(1, 3, 2)
-                x = as_np_image(flowfiledsUpsample)
-                x = np.concatenate([x, np.zeros((x.shape[0], x.shape[1], 1))], 2)
-                ax.imshow(x)
-                ax.set_title("flowfiledsUpsample {}".format(flowfiledsUpsample.shape))
+            # x = flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample)
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_im2_afterWarp_intLevel{intLevel}.jpg"), x)
 
-                ax = fig.add_subplot(1, 3, 3)
-                x = as_np_image(fw)
-                ax.imshow(x)
-                ax.set_title("warped")
+            # x = im1list[self.L - 1 - intLevel]
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_im1_forCat_intLevel{intLevel}.jpg"), x)
+
+            # x = module(torch.cat([im1list[self.L - 1 - intLevel], flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample), flowfiledsUpsample], 1))
+            # x = np.transpose(x.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # x = np.concatenate([x, np.zeros((x.shape[0], x.shape[1], 1))], -1)
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_afterModule_intLevel{intLevel}.jpg"), x)
                 
-                save_path = "output/warp_{}.jpg".format(intLevel)
-                plt.suptitle("intLevel: {}".format(intLevel))
-                plt.savefig(save_path, dpi=300)
-                plt.close()
-                print(save_path)
-
-            # print("cat: {}, {}, {}".format(im1list[self.L - 1 - intLevel].shape, flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample).shape, flowfiledsUpsample.shape))
-            # print("goes into")
-            # print(module)
             flowfileds = flowfiledsUpsample + module(torch.cat([im1list[self.L - 1 - intLevel], flow_warp(im2list[self.L - 1 - intLevel], flowfiledsUpsample), flowfiledsUpsample], 1))# residualflow
-            # print("out:", flowfileds.shape)
-            # print()
-        # print("*"*100)
-        # assert 0
+            # x = np.transpose(flowfileds.detach().cpu().numpy().squeeze(), (1, 2, 0))
+            # x = np.concatenate([x, np.zeros((x.shape[0], x.shape[1], 1))], -1)
+            # save_image_as_plot(os.path.join(save_dir, f"Spynet_afterModuleRes_intLevel{intLevel}.jpg"), x)
+                
         return flowfileds
 
 

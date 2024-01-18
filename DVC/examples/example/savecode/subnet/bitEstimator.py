@@ -36,7 +36,10 @@ class BitEstimator(nn.Module):
         self.f4 = Bitparm(channel, True)
         
     def forward(self, x):
+        print("  >in:", x.shape)
         x = self.f1(x)
         x = self.f2(x)
         x = self.f3(x)
-        return self.f4(x)
+        x = self.f4(x)
+        print("  >out:", x.shape)
+        return x

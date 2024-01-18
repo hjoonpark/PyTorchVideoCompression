@@ -105,7 +105,7 @@ class DataSet(data.Dataset):
         self.mvnois = torch.zeros([out_channel_mv, self.im_height // 16, self.im_width // 16])
         print("dataset find image: ", len(self.image_input_list))
 
-    def get_vimeo_v2(self, rootdir="../../data/vimeo_septuplet/vimeo_interp_test/"):
+    def get_vimeo_v2(self, rootdir="../../data/vimeo_septuplet_v1/vimeo_interp_test/"):
         input_dir = os.path.join(rootdir, "input")
         target_dir = os.path.join(rootdir, "target")
         fns_train_input = []
@@ -164,17 +164,28 @@ class DataSet(data.Dataset):
         input_image = imageio.imread(self.image_input_list[index])
         ref_image = imageio.imread(self.image_ref_list[index])
 
+        print("\nindex={}".format(index))
+        print("input: {}".format(self.image_input_list[index]))
+        print("ref  : {}".format(self.image_ref_list[index]))
+        print(input_image.shape, ref_image.shape)
+
         input_image = input_image.astype(np.float32) / 255.0
         ref_image = ref_image.astype(np.float32) / 255.0
+        print(input_image.shape, ref_image.shape)
 
         input_image = input_image.transpose(2, 0, 1)
         ref_image = ref_image.transpose(2, 0, 1)
+        print(input_image.shape, ref_image.shape)
         
         input_image = torch.from_numpy(input_image).float()
         ref_image = torch.from_numpy(ref_image).float()
+        print(input_image.shape, ref_image.shape)
 
         input_image, ref_image = random_crop_and_pad_image_and_labels(input_image, ref_image, [self.im_height, self.im_width])
+        print(input_image.shape, ref_image.shape)
         input_image, ref_image = random_flip(input_image, ref_image)
+        print(input_image.shape, ref_image.shape)
+        print()
 
         quant_noise_feature, quant_noise_z, quant_noise_mv = torch.nn.init.uniform_(torch.zeros_like(self.featurenoise), -0.5, 0.5), torch.nn.init.uniform_(torch.zeros_like(self.znoise), -0.5, 0.5), torch.nn.init.uniform_(torch.zeros_like(self.mvnois), -0.5, 0.5)
         return input_image, ref_image, quant_noise_feature, quant_noise_z, quant_noise_mv

@@ -16,12 +16,25 @@ from subnet import *
 import torchac
 
 import matplotlib.pyplot as plt
-def save_image_as_plot(save_path, x):
-    plt.figure()
-    plt.imshow(x)
-    plt.title('{}\n{}'.format(x.shape, os.path.basename(save_path)))
-    plt.savefig(save_path, dpi=300)
-    plt.close()
+import matplotlib.image
+from PIL import Image
+
+SAVE_IMG = True
+def save_image_as_plot(save_path, x, as_plot=False):
+
+    if as_plot:
+        fig = plt.figure(figsize=(3,3))
+        plt.imshow(x)
+        plt.title('{} ({:.2f}, {:.2f})\n{}'.format(x.shape, x.min(), x.max(), os.path.basename(save_path)))
+        plt.tight_layout()
+        plt.tick_params(left = False, right = False , labelleft = False , 
+                        labelbottom = False, bottom = False) 
+
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+    else:
+        x = (x-x.min()) / (x.max()-x.min())
+        matplotlib.image.imsave(save_path, x)
     print("Saved:", save_path)
 
 def save_model(model, iter):
@@ -41,8 +54,6 @@ def load_model(model, f):
         return int(f[st:ed])
     else:
         return 0
-
-
 
 class VideoCompressor(nn.Module):
     def __init__(self):
@@ -73,20 +84,28 @@ class VideoCompressor(nn.Module):
     def motioncompensation(self, ref, mv):
         warpframe = flow_warp(ref, mv)
         inputfeature = torch.cat((warpframe, ref), 1)
+        warpnet = self.warpnet(inputfeature)
         prediction = self.warpnet(inputfeature) + warpframe
         return prediction, warpframe
 
     def forward(self, input_image, referframe, quant_noise_feature=None, quant_noise_z=None, quant_noise_mv=None):
+        # print("-"*100)
+        # print("FORWARD")
         estmv = self.opticFlow(input_image, referframe)
 
-        if True:
+        if SAVE_IMG:
+            save_path = "output/input_image.jpg"
+            x = input_image.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
             save_path = "output/estmv.jpg"
             x = estmv.detach().cpu().squeeze().numpy()
             x = np.transpose(np.vstack((x, np.zeros((1, x.shape[1], x.shape[2])))), (1, 2, 0))
             save_image_as_plot(save_path, x)
 
         mvfeature = self.mvEncoder(estmv)
-
+        
         if self.training:
             quant_mv = mvfeature + quant_noise_mv
         else:
@@ -94,12 +113,54 @@ class VideoCompressor(nn.Module):
 
         quant_mv_upsample = self.mvDecoder(quant_mv)
 
+        if SAVE_IMG:
+            save_path = "output/quant_mv_upsample.jpg"
+            x = quant_mv_upsample.detach().cpu().squeeze().numpy()
+            x = np.transpose(np.vstack((x, np.zeros((1, x.shape[1], x.shape[2])))), (1, 2, 0))
+            save_image_as_plot(save_path, x)
+        
+        # if 1:
+        #     save_path = "output/quant_mv_upsample.jpg"
+        #     x = quant_mv_upsample.detach().cpu().squeeze().numpy()
+        #     x = np.transpose(np.vstack((x, np.zeros((1, x.shape[1], x.shape[2])))), (1, 2, 0))
+        #     save_image_as_plot(save_path, x)
+
         prediction, warpframe = self.motioncompensation(referframe, quant_mv_upsample)
+
         input_residual = input_image - prediction
 
-        feature = self.resEncoder(input_residual)
-        batch_size = feature.size()[0]
+        if SAVE_IMG:
+            save_path = "output/warpframe.jpg"
+            x = referframe.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
 
+            save_path = "output/referframe.jpg"
+            x = referframe.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+            save_path = "output/prediction.jpg"
+            x = prediction.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+            save_path = "output/warpframe.jpg"
+            x = warpframe.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+            save_path = "output/input_residual.jpg"
+            x = input_residual.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+        # x = np.transpose(input_residual.detach().cpu().squeeze().numpy(), (1, 2, 0))
+        # save_image_as_plot("output/input_residual.jpg", x)
+
+        feature = self.resEncoder(input_residual)
+
+        batch_size = feature.size()[0]
         z = self.respriorEncoder(feature)
 
         if self.training:
@@ -108,7 +169,8 @@ class VideoCompressor(nn.Module):
             compressed_z = torch.round(z)
 
         recon_sigma = self.respriorDecoder(compressed_z)
-
+        print("compressed_z:", compressed_z.shape)
+        print("recon_sigma:", recon_sigma.shape)
         feature_renorm = feature
 
         if self.training:
@@ -119,10 +181,23 @@ class VideoCompressor(nn.Module):
         recon_res = self.resDecoder(compressed_feature_renorm)
         recon_image = prediction + recon_res
 
+        if SAVE_IMG:
+            save_path = "output/recon_res.jpg"
+            x = recon_res.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+            save_path = "output/recon_image.jpg"
+            x = recon_image.detach().cpu().squeeze().numpy()
+            x = np.transpose(x, (1,2,0))
+            save_image_as_plot(save_path, x)
+
+        # x = np.transpose(recon_image.detach().cpu().squeeze().numpy(), (1, 2, 0))
+        # save_image_as_plot("output/recon_image.jpg", x)
+        # assert 0
         clipped_recon_image = recon_image.clamp(0., 1.)
 
-
-# distortion
+        # distortion
         mse_loss = torch.mean((recon_image - input_image).pow(2))
 
         # psnr = tf.cond(
@@ -136,7 +211,6 @@ class VideoCompressor(nn.Module):
 # bit per pixel
 
         def feature_probs_based_sigma(feature, sigma):
-            
             def getrealbitsg(x, gaussian):
                 # print("NIPS18noc : mn : ", torch.min(x), " - mx : ", torch.max(x), " range : ", self.mxrange)
                 cdfs = []
@@ -153,7 +227,6 @@ class VideoCompressor(nn.Module):
                 sym_out = torchac.decode_float_cdf(cdfs, byte_stream)
 
                 return sym_out - self.mxrange, real_bits
-
 
             mu = torch.zeros_like(sigma)
             sigma = sigma.clamp(1e-5, 1e10)
@@ -185,6 +258,7 @@ class VideoCompressor(nn.Module):
                 return sym_out - self.mxrange, real_bits
 
             prob = self.bitEstimator_z(z + 0.5) - self.bitEstimator_z(z - 0.5)
+            print("prob z:", prob.shape)
             total_bits = torch.sum(torch.clamp(-1.0 * torch.log(prob + 1e-5) / math.log(2.0), 0, 50))
 
 
@@ -194,9 +268,7 @@ class VideoCompressor(nn.Module):
 
             return total_bits, prob
 
-
         def iclr18_estrate_bits_mv(mv):
-
             def getrealbits(x):
                 cdfs = []
                 x = x + self.mxrange
@@ -212,6 +284,7 @@ class VideoCompressor(nn.Module):
                 return sym_out - self.mxrange, real_bits
 
             prob = self.bitEstimator_mv(mv + 0.5) - self.bitEstimator_mv(mv - 0.5)
+            print("prob mv:", prob.shape)
             total_bits = torch.sum(torch.clamp(-1.0 * torch.log(prob + 1e-5) / math.log(2.0), 0, 50))
 
 
@@ -223,8 +296,12 @@ class VideoCompressor(nn.Module):
 
         total_bits_feature, _ = feature_probs_based_sigma(compressed_feature_renorm, recon_sigma)
         # entropy_context = entropy_context_from_sigma(compressed_feature_renorm, recon_sigma)
+
         total_bits_z, _ = iclr18_estrate_bits_z(compressed_z)
+        print("compressed_z:", compressed_z.shape)
         total_bits_mv, _ = iclr18_estrate_bits_mv(quant_mv)
+        print("quant_mv:", quant_mv.shape)
+        assert 0
 
         im_shape = input_image.size()
 
@@ -232,6 +309,15 @@ class VideoCompressor(nn.Module):
         bpp_z = total_bits_z / (batch_size * im_shape[2] * im_shape[3])
         bpp_mv = total_bits_mv / (batch_size * im_shape[2] * im_shape[3])
         bpp = bpp_feature + bpp_z + bpp_mv
-        
-        return clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp
+
+        plot_data = {
+            "input_image": input_image,
+            "prediction": prediction,
+            "input_residual": input_residual,
+            "recon_res": recon_res,
+            "recon_image": recon_image,
+            "clipped_recon_image": clipped_recon_image,
+            "referframe": referframe
+        }        
+        return plot_data, clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp
         

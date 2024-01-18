@@ -18,7 +18,7 @@ import json
 from dataset import DataSet, UVGDataSet
 from tensorboardX import SummaryWriter
 from drawuvg import uvgdrawplt
-
+import random
 
 torch.backends.cudnn.enabled = True
 # gpu_num = 4
@@ -27,7 +27,7 @@ print("gpu_num:", gpu_num)
 device = torch.device('cpu')
 cur_lr = base_lr = 1e-4#  * gpu_num
 train_lambda = 2048
-print_step = 100
+print_step = 1000
 cal_step = 10
 # print_step = 10
 warmup_step = 0#  // gpu_num
@@ -57,6 +57,7 @@ parser.add_argument('--rerank', action='store_true')
 parser.add_argument('--allpick', action='store_true')
 parser.add_argument('--config', dest='config', required=True,
         help = 'hyperparameter of Reid in json format')
+
 
 def parse_config(config):
     config = json.load(open(args.config))
@@ -121,7 +122,7 @@ def testuvg(global_step, testfull=False):
             for i in range(seqlen):
                 input_image = input_images[:, i, :, :, :]
                 inputframe, refframe = Var(input_image), Var(ref_image)
-                clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = net(inputframe, refframe)
+                _, clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = net(inputframe, refframe)
                 sumbpp += torch.mean(bpp).cpu().detach().numpy()
                 sumpsnr += torch.mean(10 * (torch.log(1. / mse_loss) / np.log(10))).cpu().detach().numpy()
                 summsssim += ms_ssim(clipped_recon_image.cpu().detach(), input_image, data_range=1.0, size_average=True).numpy()
@@ -148,13 +149,12 @@ def save_image_as_plot(save_path, x):
 def train(epoch, global_step):
     # print ("train epoch", epoch)
     global gpu_per_batch
-    train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=1)
+    train_loader = DataLoader(dataset=train_dataset, shuffle=False, num_workers=gpu_num, batch_size=1)
     # train_loader = DataLoader(dataset=train_dataset, shuffle=True, num_workers=gpu_num, batch_size=gpu_per_batch, pin_memory=True)
     net.train()
 
     save_dir = "output"
     os.makedirs(save_dir, exist_ok=True)
-    save_plot = True
     # n_params = sum(p.numel() for p in model.parameters())
     # n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # print("Trainable parameters: {:,}".format(n_trainable))
@@ -173,10 +173,8 @@ def train(epoch, global_step):
     sumbpp_z = 0
     tot_iter = len(train_loader)
     t0 = datetime.datetime.now()
+    save_plot = False
     for batch_idx, input in enumerate(train_loader):
-        if batch_idx > 0:
-            print(">> BREAK at", batch_idx)
-            break
 
         global_step += 1
         bat_cnt += 1
@@ -191,8 +189,31 @@ def train(epoch, global_step):
         quant_noise_feature, quant_noise_z, quant_noise_mv = Var(input[2]), Var(input[3]), Var(input[4])
 
         # ta = datetime.datetime.now()
-        clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = net(input_image, ref_image, quant_noise_feature, quant_noise_z, quant_noise_mv)
-        break
+        plot_data, clipped_recon_image, mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = net(input_image, ref_image, quant_noise_feature, quant_noise_z, quant_noise_mv)
+
+        cond1 = global_step < 50 and global_step % 10 == 0
+        cond2 = global_step > 100 and global_step % print_step == 0
+        if cond1 or cond2:
+            L = 3
+            R = 3
+            C = 3
+            fig = plt.figure(figsize=(L*C, L*R))
+
+            i = 1
+            for k, x0 in plot_data.items():
+                ax = fig.add_subplot(R, C, i)
+                x0 = x0.detach().cpu().numpy()
+                x = np.transpose(x0.squeeze(), (1, 2, 0))
+                ax.imshow(x)
+                ax.set_title("{}: {}\n({:.2f}, {:.2f})".format(k, x0.shape, x.min(), x.max()))
+                i += 1
+
+            plt.suptitle("epoch: {}, loss: {:.6f}".format(global_step, mse_loss.item()))
+            plt.tight_layout()
+            save_path = "output/{:05d}.jpg".format(global_step)
+            plt.savefig(save_path, dpi=300)
+            print(save_path)
+            plt.close()
 
         # tb = datetime.datetime.now()
         mse_loss, warploss, interloss, bpp_feature, bpp_z, bpp_mv, bpp = \
@@ -268,6 +289,12 @@ def train(epoch, global_step):
 
 
 if __name__ == "__main__":
+    seed = 1
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+
     args = parser.parse_args()
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s] %(message)s')
@@ -302,6 +329,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(bp_parameters, lr=base_lr)
     # save_model(model, 0)
     global train_dataset, test_dataset
+
     if args.testuvg:
         test_dataset = UVGDataSet(refdir=ref_i_dir, testfull=True)
         print('testing UVG')
@@ -316,7 +344,4 @@ if __name__ == "__main__":
         adjust_learning_rate(optimizer, global_step)
         if global_step > tot_step:
             save_model(model, global_step)
-            break
         global_step = train(epoch, global_step)
-        break
-        save_model(model, global_step)
